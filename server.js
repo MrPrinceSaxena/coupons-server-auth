@@ -18,15 +18,19 @@ const pool = new Pool({
 // Create table on startup
 const initDB = async () => {
   try {
+    // TEMPORARY: This drops the old table so we can rebuild it with the password column
+    await pool.query('DROP TABLE IF EXISTS users'); 
+    
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS users (
+      CREATE TABLE users (
         id SERIAL PRIMARY KEY,
-        email TEXT,
+        email TEXT UNIQUE,
         name TEXT,
+        password TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    console.log("✅ Postgres Database table 'users' is ready");
+    console.log("✅ Postgres Database table 'users' is ready with passwords!");
   } catch (err) {
     console.error("❌ Error creating table:", err);
   }
@@ -41,22 +45,19 @@ app.get("/", (req, res) => {
 // 1. SIGNUP ENDPOINT (Creates new user)
 // ==========================================
 app.post("/signup", async (req, res) => {
-  const { email, name } = req.body;
+  const { email, name, password } = req.body;
   const time = new Date().toISOString();
 
   try {
-    // Check if user already exists
     const userCheck = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
-    
     if (userCheck.rows.length > 0) {
-      // If user exists, trigger the frontend fallback to login
       return res.status(400).json({ error: "User already exists" });
     }
 
-    // Insert new user
+    // Insert the user WITH their plain text password
     await pool.query(
-      "INSERT INTO users (email, name, created_at) VALUES ($1, $2, $3)",
-      [email, name, time]
+      "INSERT INTO users (email, name, password, created_at) VALUES ($1, $2, $3, $4)",
+      [email, name, password, time]
     );
     res.json({ success: true });
     
@@ -70,14 +71,20 @@ app.post("/signup", async (req, res) => {
 // 2. LOGIN ENDPOINT (Checks existing user)
 // ==========================================
 app.post("/login", async (req, res) => {
-  const { email } = req.body;
+  const { email, password } = req.body;
 
   try {
-    // Look up the user by email
     const result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
     
     if (result.rows.length === 0) {
       return res.status(400).json({ error: "Account not found. Please sign up." });
+    }
+
+    const user = result.rows[0];
+
+    // Compare the typed password directly with the saved plain text password
+    if (password !== user.password) {
+       return res.status(400).json({ error: "Incorrect password!" });
     }
     
     res.json({ success: true });
