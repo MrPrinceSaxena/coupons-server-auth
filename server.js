@@ -11,7 +11,7 @@ app.use(express.json());
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
-    rejectUnauthorized: false // Required for Render connections
+    rejectUnauthorized: false
   }
 });
 
@@ -37,21 +37,54 @@ app.get("/", (req, res) => {
   res.send("Auth server running with Postgres 🚀");
 });
 
-// Signup/Login endpoint
-app.post("/login", async (req, res) => {
+// ==========================================
+// 1. SIGNUP ENDPOINT (Creates new user)
+// ==========================================
+app.post("/signup", async (req, res) => {
   const { email, name } = req.body;
   const time = new Date().toISOString();
 
   try {
-    // Postgres uses $1, $2, $3 for secure query parameters
+    // Check if user already exists
+    const userCheck = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+    
+    if (userCheck.rows.length > 0) {
+      // If user exists, trigger the frontend fallback to login
+      return res.status(400).json({ error: "User already exists" });
+    }
+
+    // Insert new user
     await pool.query(
       "INSERT INTO users (email, name, created_at) VALUES ($1, $2, $3)",
       [email, name, time]
     );
     res.json({ success: true });
+    
   } catch (err) {
     console.error("Database error:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ==========================================
+// 2. LOGIN ENDPOINT (Checks existing user)
+// ==========================================
+app.post("/login", async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    // Look up the user by email
+    const result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+    
+    if (result.rows.length === 0) {
+      return res.status(400).json({ error: "Account not found. Please sign up." });
+    }
+    
+    res.json({ success: true });
+    
+  } catch (err) {
+    console.error("Database error:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -59,7 +92,6 @@ app.post("/login", async (req, res) => {
 app.get("/users", async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM users");
-    // Postgres returns rows inside a 'rows' object
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
