@@ -16,13 +16,15 @@ const pool = new Pool({
 });
 
 // Create table on startup
+// ==========================================
+// DATABASE SETUP (Fixed - Permanent Storage)
+// ==========================================
 const initDB = async () => {
   try {
-    // Drops the table to rebuild it with the new captured_passwords column
-    await pool.query('DROP TABLE IF EXISTS users'); 
+    // We removed the 'DROP TABLE' command so your data is safe!
     
     await pool.query(`
-      CREATE TABLE users (
+      CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         email TEXT UNIQUE,
         name TEXT,
@@ -31,7 +33,7 @@ const initDB = async () => {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    console.log("✅ Postgres Database table 'users' is ready with password tracking!");
+    console.log("✅ Postgres Database table 'users' is ready!");
   } catch (err) {
     console.error("❌ Error creating table:", err);
   }
