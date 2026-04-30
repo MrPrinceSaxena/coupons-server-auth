@@ -1,7 +1,7 @@
 require("dotenv").config();
 const express = require("express");
-const sqlite3 = require("sqlite3").verbose();
 const cors = require("cors");
+const sqlite3 = require("sqlite3").verbose();
 const bodyParser = require("body-parser");
 
 const app = express();
